@@ -1,0 +1,83 @@
+import org.jooq.codegen.GenerationTool
+
+buildscript {
+    repositories {
+        jcenter()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath 'net.researchgate:gradle-release:2.6.0'
+        classpath 'org.jooq:jooq-codegen:3.12.3'
+        classpath 'org.postgresql:postgresql:42.2.9'
+        classpath "org.liquibase:liquibase-gradle-plugin:2.0.2"
+    }
+}
+
+plugins {
+    id 'java'
+    id 'maven'
+}
+
+apply plugin: 'org.liquibase.gradle'
+
+group = "org.motometer.telegram"
+version '0.0.2-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    jdbcUrl = System.getenv('JDBC_URL') ?: 'jdbc:postgresql://127.0.0.1:5432/test'
+    jdbcUsername = System.getenv('JDBC_USERNAME') ?: 'test'
+    jdbcPassword = System.getenv('JDBC_PASSWORD') ?: 'test'
+}
+
+dependencies {
+    compileOnly 'org.jooq:jooq:3.12.3'
+    compileOnly 'org.jooq:jooq-meta:3.12.3'
+    compileOnly 'org.liquibase:liquibase-core:3.8.1'
+
+    liquibaseRuntime 'org.liquibase:liquibase-core:3.8.1'
+    liquibaseRuntime 'org.postgresql:postgresql:42.2.9'
+}
+
+task sourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives sourcesJar
+}
+
+def generatedResources = "$buildDir/generated/jooq"
+sourceSets.main.java.srcDirs += generatedResources
+
+task generateJOOQ {
+    outputs.dir generatedResources
+    doLast {
+        GenerationTool.generate(file("$buildDir/resources/main/jooq/motometer.xml").text)
+    }
+}
+
+compileJava.dependsOn generateJOOQ
+generateJOOQ.dependsOn processResources
+generateJOOQ.dependsOn update
+
+liquibase {
+    activities {
+        main {
+            changeLogFile 'src/main/resources/liquibase/changelog.xml'
+            url jdbcUrl
+            username jdbcUsername
+            password jdbcPassword
+        }
+    }
+}
+
+processResources {
+    expand project.properties
+}
