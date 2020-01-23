@@ -11,7 +11,7 @@
         <name>org.jooq.codegen.JavaGenerator</name>
         <database>
             <name>org.jooq.meta.postgres.PostgresDatabase</name>
-            <inputSchema>public</inputSchema>
+            <inputSchema>${schema}</inputSchema>
             <includes>.*</includes>
             <excludes></excludes>
         </database>
