@@ -30,9 +30,10 @@ repositories {
 }
 
 ext {
-    jdbcUrl = System.getenv('JDBC_URL') ?: 'jdbc:postgresql://127.0.0.1:5432/test'
-    jdbcUsername = System.getenv('JDBC_USERNAME') ?: 'test'
-    jdbcPassword = System.getenv('JDBC_PASSWORD') ?: 'test'
+    jdbcUrl = System.getenv('JDBC_URL')
+    jdbcUsername = System.getenv('JDBC_USERNAME')
+    jdbcPassword = System.getenv('JDBC_PASSWORD')
+    schema = System.getenv('JDBC_SCHEMA')
 }
 
 dependencies {
@@ -74,6 +75,8 @@ liquibase {
             url jdbcUrl
             username jdbcUsername
             password jdbcPassword
+            liquibaseSchemaName schema
+            defaultSchemaName schema
         }
     }
 }
