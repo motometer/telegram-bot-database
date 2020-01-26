@@ -16,6 +16,7 @@ buildscript {
 plugins {
     id 'java'
     id 'maven'
+    id 'signing'
 }
 
 apply plugin: 'org.liquibase.gradle'
@@ -35,6 +36,13 @@ ext {
     jdbcPassword = System.getenv('JDBC_PASSWORD')
     schema = System.getenv('JDBC_SCHEMA')
 }
+
+ext.signingKeyFile = "$buildDir/keys/key.gpg"
+ext.'signing.keyId' = System.getenv('GPG_KEY_ID')
+ext.'signing.secretKeyRingFile' = signingKeyFile
+ext.'signing.password' = System.getenv('GPG_PASSWORD')
+ext.'ossrhUsername' = System.getenv('OSSRH_USERNAME')
+ext.'ossrhPassword' = System.getenv('OSSRH_PASSWORD')
 
 dependencies {
     compileOnly 'org.jooq:jooq:3.12.3'
@@ -84,3 +92,76 @@ liquibase {
 processResources {
     expand project.properties
 }
+
+gradle.taskGraph.whenReady { taskGraph ->
+    if (taskGraph.allTasks.any { it.name == 'build' || it.name == 'assemble' }) {
+        tasks.findAll {
+            it.name == 'signArchives' || it.name == 'signDocsJar' || it.name == 'signTestJar'
+        }.each { task ->
+            task.enabled = false
+        }
+    }
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+            pom.project {
+                name = 'Telegram Bot database'
+                packaging 'jar'
+                description 'Telegram Bot database'
+                url = 'https://github.com/motometer/telegram-bot-database'
+
+                scm {
+                    connection = 'scm:git:https://github.com/motometer/telegram-bot-database.git'
+                    developerConnection = 'scm:git:https://github.com/motometer/telegram-bot-database.git'
+                    url = 'https://github.com/motometer/telegram-bot-database'
+                }
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'vbychkovskyi'
+                        name = 'Viacheslav Bychkovskyi'
+                        email = 'vbychkovskyy@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+}
+
+signing {
+    sign configurations.archives
+}
+
+uploadArchives.dependsOn signArchives
+
+task downloadKey {
+    outputs.file("$signingKeyFile")
+    doLast {
+        def file = new File("$signingKeyFile")
+        def keyLocation = System.getenv('GPG_KEY_LOCATION')
+        if (!file.exists() && keyLocation != null) {
+            new URL(keyLocation)
+                    .withInputStream { stream -> file.withOutputStream{ it << stream }}
+        }
+    }
+}
+
+signArchives.dependsOn downloadKey
